@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Processing Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #f4f4f4; }
+        h1 { color: #333; }
+        table { width: 90%; margin: 20px auto; border-collapse: collapse; background: white; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: center; }
+        th { background: #555; color: white; }
+        .status { font-weight: bold; }
+        .completed { color: green; }
+        .pending { color: orange; }
+        .failed { color: red; }
+        .log-container { width: 90%; margin: 20px auto; text-align: left; background: #fff; padding: 10px; border: 1px solid #ddd; height: 200px; overflow-y: scroll; }
+        .log-entry { font-size: 14px; padding: 5px 0; }
+    </style>
+</head>
+<body>
+
+    <h1>📊 Order Processing Dashboard</h1>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Order ID</th>
+                <th>Payment Status</th>
+                <th>Packing Status</th>
+                <th>Shipping Status</th>
+                <th>Overall Status</th>
+                <th>Retries</th>
+            </tr>
+        </thead>
+        <tbody id="orders">
+            <!-- Orders will be updated here dynamically -->
+        </tbody>
+    </table>
+
+    <h2>⚠️ System Logs (Crashes, Reassignments, Retries)</h2>
+    <div class="log-container" id="log-container"></div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var socket = io({ transports: ["websocket"] });
+        
+            var orderHistory = {};  // Store order updates persistently
+            var logHistory = new Set();  // Store all logs globally
+        
+            socket.on("connect", function () {
+                console.log("✅ Connected to WebSocket!");
+                socket.emit("request_update"); // Request latest order data after reload
+            });
+        
+            socket.on("update", function (data) {
+                console.log("📢 UI Update Received:", data);
+                var ordersTable = document.getElementById("orders");
+                var logContainer = document.getElementById("log-container");
+        
+                for (var orderId in data) {
+                    var order = data[orderId];
+        
+                    // Preserve previous order data
+                    if (!orderHistory[orderId]) {
+                        orderHistory[orderId] = order;
+                    } else {
+                        orderHistory[orderId] = { ...orderHistory[orderId], ...order };
+                    }
+        
+                    // Update Order Table
+                    var existingRow = document.getElementById(`order-${orderId}`);
+                    if (!existingRow) {
+                        var row = document.createElement("tr");
+                        row.id = `order-${orderId}`;
+                        row.innerHTML = `
+                            <td>#${orderId}</td>
+                            <td id="payment-${orderId}" class="status">${order.payment} (${order.worker_payment || "N/A"})</td>
+                            <td id="packing-${orderId}" class="status">${order.packing} (${order.worker_packing || "N/A"})</td>
+                            <td id="shipping-${orderId}" class="status">${order.shipping} (${order.worker_shipping || "N/A"})</td>
+                            <td id="overall-${orderId}" class="status">${order.overall}</td>
+                            <td id="retry-${orderId}" class="status">${order.retries || 0}</td>
+                        `;
+                        ordersTable.appendChild(row);
+                    } else {
+                        // Handle Reassignment Display before Retry Count Update
+                        if (order.retries > (orderHistory[orderId].retries || 0)) {
+                            document.getElementById(`overall-${orderId}`).innerHTML = `<span class="pending">Reassigned...</span>`;
+        
+                            setTimeout(() => {
+                                document.getElementById(`overall-${orderId}`).innerHTML = order.overall;
+                                document.getElementById(`retry-${orderId}`).innerHTML = order.retries;
+                            }, 1000); // Delay before updating retry count
+                        } else {
+                            document.getElementById(`overall-${orderId}`).innerHTML = order.overall;
+                            document.getElementById(`retry-${orderId}`).innerHTML = order.retries || 0;
+                        }
+        
+                        document.getElementById(`payment-${orderId}`).innerHTML = `${order.payment} (${order.worker_payment || "N/A"})`;
+                        document.getElementById(`packing-${orderId}`).innerHTML = `${order.packing} (${order.worker_packing || "N/A"})`;
+                        document.getElementById(`shipping-${orderId}`).innerHTML = `${order.shipping} (${order.worker_shipping || "N/A"})`;
+                    }
+        
+                    // Add logs persistently without clearing
+                    if (order.logs && order.logs.length > 0) {
+                        order.logs.forEach(log => {
+                            if (!logHistory.has(log)) {  // Prevent duplicate logs
+                                logHistory.add(log);
+                                var logEntry = document.createElement("div");
+                                logEntry.classList.add("log-entry");
+                                logEntry.textContent = `📌 ${log}`;
+                                logContainer.appendChild(logEntry);
+                            }
+                        });
+                        logContainer.scrollTop = logContainer.scrollHeight; // Auto-scroll to latest log
+                    }
+                }
+        
+                // 🛠️ Show a default message if no logs are found
+                
+            });
+            // Handle system logs separately to persist logs across reloads
+socket.on("logs_update", function (logs) {
+    console.log("📝 Logs Update Received:", logs);
+    var logContainer = document.getElementById("log-container");
+
+    if (logs.length === 0) {
+        logContainer.innerHTML = `<div class="log-entry">📭 No system logs yet.</div>`;
+        return;
+    }
+
+    logs.forEach(log => {
+        if (!logHistory.has(log)) {  // Avoid duplicates
+            logHistory.add(log);
+            var logEntry = document.createElement("div");
+            logEntry.classList.add("log-entry");
+            logEntry.textContent = `📌 ${log}`;
+            logContainer.appendChild(logEntry);
+        }
+    });
+
+    logContainer.scrollTop = logContainer.scrollHeight; // Auto-scroll to latest log
+});
+
+        });
+        
+        
+    </script>
+</body>
+</html>
