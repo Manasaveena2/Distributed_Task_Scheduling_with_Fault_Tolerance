@@ -36,7 +36,6 @@
             </tr>
         </thead>
         <tbody id="orders">
-            <!-- Orders will be updated here dynamically -->
         </tbody>
     </table>
 
@@ -47,12 +46,12 @@
         document.addEventListener("DOMContentLoaded", function () {
             var socket = io({ transports: ["websocket"] });
         
-            var orderHistory = {};  // Store order updates persistently
-            var logHistory = new Set();  // Store all logs globally
+            var orderHistory = {};  
+            var logHistory = new Set();  
         
             socket.on("connect", function () {
                 console.log("✅ Connected to WebSocket!");
-                socket.emit("request_update"); // Request latest order data after reload
+                socket.emit("request_update"); 
             });
         
             socket.on("update", function (data) {
@@ -63,14 +62,14 @@
                 for (var orderId in data) {
                     var order = data[orderId];
         
-                    // Preserve previous order data
+                    
                     if (!orderHistory[orderId]) {
                         orderHistory[orderId] = order;
                     } else {
                         orderHistory[orderId] = { ...orderHistory[orderId], ...order };
                     }
         
-                    // Update Order Table
+                    
                     var existingRow = document.getElementById(`order-${orderId}`);
                     if (!existingRow) {
                         var row = document.createElement("tr");
@@ -85,14 +84,14 @@
                         `;
                         ordersTable.appendChild(row);
                     } else {
-                        // Handle Reassignment Display before Retry Count Update
+                       
                         if (order.retries > (orderHistory[orderId].retries || 0)) {
                             document.getElementById(`overall-${orderId}`).innerHTML = `<span class="pending">Reassigned...</span>`;
         
                             setTimeout(() => {
                                 document.getElementById(`overall-${orderId}`).innerHTML = order.overall;
                                 document.getElementById(`retry-${orderId}`).innerHTML = order.retries;
-                            }, 1000); // Delay before updating retry count
+                            }, 1000); 
                         } else {
                             document.getElementById(`overall-${orderId}`).innerHTML = order.overall;
                             document.getElementById(`retry-${orderId}`).innerHTML = order.retries || 0;
@@ -103,10 +102,10 @@
                         document.getElementById(`shipping-${orderId}`).innerHTML = `${order.shipping} (${order.worker_shipping || "N/A"})`;
                     }
         
-                    // Add logs persistently without clearing
+                    
                     if (order.logs && order.logs.length > 0) {
                         order.logs.forEach(log => {
-                            if (!logHistory.has(log)) {  // Prevent duplicate logs
+                            if (!logHistory.has(log)) {  
                                 logHistory.add(log);
                                 var logEntry = document.createElement("div");
                                 logEntry.classList.add("log-entry");
@@ -114,14 +113,13 @@
                                 logContainer.appendChild(logEntry);
                             }
                         });
-                        logContainer.scrollTop = logContainer.scrollHeight; // Auto-scroll to latest log
+                        logContainer.scrollTop = logContainer.scrollHeight; 
                     }
                 }
         
-                // 🛠️ Show a default message if no logs are found
                 
             });
-            // Handle system logs separately to persist logs across reloads
+           
 socket.on("logs_update", function (logs) {
     console.log("📝 Logs Update Received:", logs);
     var logContainer = document.getElementById("log-container");
@@ -132,7 +130,7 @@ socket.on("logs_update", function (logs) {
     }
 
     logs.forEach(log => {
-        if (!logHistory.has(log)) {  // Avoid duplicates
+        if (!logHistory.has(log)) {  
             logHistory.add(log);
             var logEntry = document.createElement("div");
             logEntry.classList.add("log-entry");
@@ -141,7 +139,7 @@ socket.on("logs_update", function (logs) {
         }
     });
 
-    logContainer.scrollTop = logContainer.scrollHeight; // Auto-scroll to latest log
+    logContainer.scrollTop = logContainer.scrollHeight; 
 });
 
         });
